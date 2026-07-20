@@ -186,8 +186,8 @@ jobs:
           # `findmnt` may report /dev/root on EC2. Ask lsblk for the actual
           # block device mounted at / so growpart receives one partition number.
           ROOT_DEVICE=$(lsblk -nrpo NAME,MOUNTPOINTS | awk '$2 == "/" { print $1; exit }')
-          ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
-          ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
+          ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE" | tr -d '[:space:]')
+          ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE" | tr -d '[:space:]')
           if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
             echo "ERROR: Could not identify the root disk and partition."
             findmnt /
