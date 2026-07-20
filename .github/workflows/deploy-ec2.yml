@@ -57,7 +57,9 @@ jobs:
           mkdir -p ~/.ssh
           printf "%s" "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          printf "%s\n" "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Use a fixed alias for the trusted key so it remains valid whether
+          # EC2_HOST contains the instance IP address or its public DNS name.
+          printf "%s\n" "$EC2_KNOWN_HOSTS" | awk 'NF >= 3 { $1 = "ec2-deploy-host"; print }' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Package release archive
@@ -89,6 +91,8 @@ jobs:
           for attempt in 1 2 3; do
             if scp -P "$PORT" \
               -o StrictHostKeyChecking=yes \
+              -o HostKeyAlias=ec2-deploy-host \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
               -o ConnectTimeout=30 \
               /tmp/release.tar.gz "${EC2_USER}@${HOST}:/tmp/customer_support_agent_release.tar.gz"; then
               break
@@ -123,6 +127,8 @@ jobs:
           for deploy_attempt in 1 2 3; do
             if ssh -p "$PORT" \
               -o StrictHostKeyChecking=yes \
+              -o HostKeyAlias=ec2-deploy-host \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
               -o ConnectTimeout=30 \
               "${EC2_USER}@${HOST}" \
               "APP_DIR='${APP_DIR}' bash -s" <<'EOF_REMOTE'; then
