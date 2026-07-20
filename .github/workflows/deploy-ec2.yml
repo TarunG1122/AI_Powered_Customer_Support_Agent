@@ -181,6 +181,32 @@ jobs:
 
           sudo systemctl enable --now docker || true
 
+          echo "Ensuring the root filesystem uses the resized EBS volume..."
+          ROOT_DEVICE=$(findmnt -n -o SOURCE /)
+          ROOT_FILESYSTEM=$(findmnt -n -o FSTYPE /)
+          ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
+          ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
+          if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
+            echo "ERROR: Could not identify the root disk and partition."
+            findmnt /
+            lsblk
+            exit 1
+          fi
+          if ! command -v growpart >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y cloud-guest-utils
+          fi
+          sudo growpart "/dev/$ROOT_DISK" "$ROOT_PARTITION" || true
+          case "$ROOT_FILESYSTEM" in
+            ext4) sudo resize2fs "$ROOT_DEVICE" ;;
+            xfs) sudo xfs_growfs -d / ;;
+            *)
+              echo "ERROR: Unsupported root filesystem: $ROOT_FILESYSTEM"
+              exit 1
+              ;;
+          esac
+          df -hT /
+
           if sudo docker compose version >/dev/null 2>&1; then
             DOCKER_COMPOSE_CMD="sudo docker compose"
           elif command -v docker-compose >/dev/null 2>&1; then
