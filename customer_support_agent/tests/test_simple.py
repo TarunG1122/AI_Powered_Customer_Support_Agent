@@ -3,7 +3,9 @@ import sys
 
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Make the repository root importable when pytest chooses the tests directory
+# as its import root (as it can on GitHub Actions runners).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from customer_support_agent.api.app_factory import create_app
 from customer_support_agent.core.settings import Settings

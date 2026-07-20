@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - master
 
 concurrency:
   group: deploy-ec2
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
@@ -46,10 +46,19 @@ jobs:
           printf "%s" "${{ secrets.EC2_ENV_FILE }}" > .env
 
       - name: Configure SSH key
+        env:
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
+          if [ -z "$EC2_KNOWN_HOSTS" ]; then
+            echo "ERROR: Set the EC2_KNOWN_HOSTS secret to the server's SSH host key."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           printf "%s" "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          printf "%s\n" "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Package release archive
         run: |
@@ -79,7 +88,7 @@ jobs:
 
           for attempt in 1 2 3; do
             if scp -P "$PORT" \
-              -o StrictHostKeyChecking=no \
+              -o StrictHostKeyChecking=yes \
               -o ConnectTimeout=30 \
               /tmp/release.tar.gz "${EC2_USER}@${HOST}:/tmp/customer_support_agent_release.tar.gz"; then
               break
@@ -113,7 +122,7 @@ jobs:
 
           for deploy_attempt in 1 2 3; do
             if ssh -p "$PORT" \
-              -o StrictHostKeyChecking=no \
+              -o StrictHostKeyChecking=yes \
               -o ConnectTimeout=30 \
               "${EC2_USER}@${HOST}" \
               "APP_DIR='${APP_DIR}' bash -s" <<'EOF_REMOTE'; then
