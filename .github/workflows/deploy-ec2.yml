@@ -182,24 +182,19 @@ jobs:
           sudo systemctl enable --now docker || true
 
           echo "Ensuring the root filesystem uses the resized EBS volume..."
-          ROOT_DEVICE=$(findmnt -n -o SOURCE /)
           ROOT_FILESYSTEM=$(findmnt -n -o FSTYPE /)
+          # `findmnt` may report /dev/root on EC2. Ask lsblk for the actual
+          # block device mounted at / so growpart receives one partition number.
+          ROOT_DEVICE=$(lsblk -nrpo NAME,MOUNTPOINTS | awk '$2 == "/" { print $1; exit }')
           ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
           ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
-          # Some EC2 Ubuntu images expose the mounted root filesystem as
-          # /dev/root. Resolve its actual block device through major:minor.
-          if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
-            ROOT_MAJOR_MINOR=$(findmnt -n -o MAJ:MIN /)
-            ROOT_DEVICE=$(lsblk -nrpo NAME,MAJ:MIN | awk -v major_minor="$ROOT_MAJOR_MINOR" '$2 == major_minor { print $1; exit }')
-            ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
-            ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
-          fi
           if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
             echo "ERROR: Could not identify the root disk and partition."
             findmnt /
             lsblk
             exit 1
           fi
+          echo "Root block device: $ROOT_DEVICE (disk: /dev/$ROOT_DISK, partition: $ROOT_PARTITION)"
           if ! command -v growpart >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y cloud-guest-utils
