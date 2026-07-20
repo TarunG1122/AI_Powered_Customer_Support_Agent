@@ -255,7 +255,7 @@ jobs:
 
           # The API runs as the non-root app user (10001). data/ is a bind
           # mount, so host ownership—not Dockerfile ownership—controls writes.
-          sudo install -d -o 10001 -g 10001 "$APP_DIR/data"
+          sudo mkdir -p "$APP_DIR/data"
           sudo chown -R 10001:10001 "$APP_DIR/data"
 
           $DOCKER_COMPOSE_CMD up -d --build --force-recreate --remove-orphans
