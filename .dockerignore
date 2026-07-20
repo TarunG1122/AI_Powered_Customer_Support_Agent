@@ -1,0 +1,20 @@
+# Keep the Docker build context limited to files explicitly copied in the Dockerfile.
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!main.py
+!app.py
+!customer_support_agent/
+!customer_support_agent/**
+
+# Never copy secrets, host virtual environments, local databases, or build caches.
+.env
+.venv/
+.git/
+data/
+knowledge_base/
+tmp/
+__pycache__/
+**/__pycache__/
+*.py[co]
