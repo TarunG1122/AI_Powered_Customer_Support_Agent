@@ -191,12 +191,29 @@ jobs:
           fi
 
           echo "Reclaiming disk space before build..."
+          df -h / /var/lib/docker 2>/dev/null || df -h /
           sudo docker system df || true
           $DOCKER_COMPOSE_CMD down --remove-orphans || true
+          # The prior application image is no longer needed after `down` and is
+          # large enough to prevent the replacement image from being exported
+          # on small EC2 root volumes.
+          sudo docker image rm -f support-copilot:latest || true
           sudo docker builder prune -af || true
-          sudo docker image prune -af || true
           sudo docker container prune -f || true
           sudo docker system df || true
+          AVAILABLE_KB=$(df -Pk /var/lib/docker 2>/dev/null | awk 'NR == 2 { print $4 }')
+          if [ -z "$AVAILABLE_KB" ]; then
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+          fi
+          # Building this dependency set temporarily needs both the builder and
+          # runtime layers, so fail early with an actionable message instead of
+          # an opaque containerd "no space left on device" error.
+          if [ "$AVAILABLE_KB" -lt 3145728 ]; then
+            echo "ERROR: Less than 3 GiB is free for Docker after cleanup."
+            echo "Increase the EC2 root volume, or remove unused data/logs on the host."
+            df -h / /var/lib/docker 2>/dev/null || df -h /
+            exit 1
+          fi
 
           $DOCKER_COMPOSE_CMD up -d --build --force-recreate --remove-orphans
           $DOCKER_COMPOSE_CMD ps
