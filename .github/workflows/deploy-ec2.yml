@@ -186,6 +186,14 @@ jobs:
           ROOT_FILESYSTEM=$(findmnt -n -o FSTYPE /)
           ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
           ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
+          # Some EC2 Ubuntu images expose the mounted root filesystem as
+          # /dev/root. Resolve its actual block device through major:minor.
+          if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
+            ROOT_MAJOR_MINOR=$(findmnt -n -o MAJ:MIN /)
+            ROOT_DEVICE=$(lsblk -nrpo NAME,MAJ:MIN | awk -v major_minor="$ROOT_MAJOR_MINOR" '$2 == major_minor { print $1; exit }')
+            ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEVICE")
+            ROOT_PARTITION=$(lsblk -no PARTN "$ROOT_DEVICE")
+          fi
           if [ -z "$ROOT_DISK" ] || [ -z "$ROOT_PARTITION" ]; then
             echo "ERROR: Could not identify the root disk and partition."
             findmnt /
@@ -196,7 +204,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y cloud-guest-utils
           fi
-          sudo growpart "/dev/$ROOT_DISK" "$ROOT_PARTITION" || true
+          sudo growpart "/dev/$ROOT_DISK" "$ROOT_PARTITION"
           case "$ROOT_FILESYSTEM" in
             ext4) sudo resize2fs "$ROOT_DEVICE" ;;
             xfs) sudo xfs_growfs -d / ;;
@@ -234,9 +242,9 @@ jobs:
           # Building this dependency set temporarily needs both the builder and
           # runtime layers, so fail early with an actionable message instead of
           # an opaque containerd "no space left on device" error.
-          if [ "$AVAILABLE_KB" -lt 3145728 ]; then
-            echo "ERROR: Less than 3 GiB is free for Docker after cleanup."
-            echo "Increase the EC2 root volume, or remove unused data/logs on the host."
+          if [ "$AVAILABLE_KB" -lt 12582912 ]; then
+            echo "ERROR: Less than 12 GiB is free for Docker after cleanup."
+            echo "Expand the EC2 root filesystem, or remove unused data/logs on the host."
             df -h / /var/lib/docker 2>/dev/null || df -h /
             exit 1
           fi
