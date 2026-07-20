@@ -199,7 +199,16 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y cloud-guest-utils
           fi
-          sudo growpart "/dev/$ROOT_DISK" "$ROOT_PARTITION"
+          if ! GROWPART_OUTPUT=$(sudo growpart "/dev/$ROOT_DISK" "$ROOT_PARTITION" 2>&1); then
+            if printf '%s' "$GROWPART_OUTPUT" | grep -q 'NOCHANGE:'; then
+              echo "$GROWPART_OUTPUT"
+            else
+              echo "$GROWPART_OUTPUT"
+              exit 1
+            fi
+          else
+            echo "$GROWPART_OUTPUT"
+          fi
           case "$ROOT_FILESYSTEM" in
             ext4) sudo resize2fs "$ROOT_DEVICE" ;;
             xfs) sudo xfs_growfs -d / ;;
@@ -243,6 +252,11 @@ jobs:
             df -h / /var/lib/docker 2>/dev/null || df -h /
             exit 1
           fi
+
+          # The API runs as the non-root app user (10001). data/ is a bind
+          # mount, so host ownership—not Dockerfile ownership—controls writes.
+          sudo install -d -o 10001 -g 10001 "$APP_DIR/data"
+          sudo chown -R 10001:10001 "$APP_DIR/data"
 
           $DOCKER_COMPOSE_CMD up -d --build --force-recreate --remove-orphans
           $DOCKER_COMPOSE_CMD ps

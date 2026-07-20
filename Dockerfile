@@ -26,7 +26,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN addgroup --system app && adduser --system --ingroup app app
+# Keep the runtime account's identity stable so a deployment can safely grant
+# it write access to host-mounted persistent data.
+ARG APP_UID=10001
+ARG APP_GID=10001
+RUN addgroup --system --gid "$APP_GID" app \
+    && adduser --system --uid "$APP_UID" --ingroup app app
 
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app customer_support_agent ./customer_support_agent
